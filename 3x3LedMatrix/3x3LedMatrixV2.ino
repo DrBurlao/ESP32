@@ -1,17 +1,17 @@
 #include <Arduino.h>
 
 // Definición de pines
-#define LED_AZUL_1 5
-#define LED_BLANCO_1 13
-#define LED_AZUL_2 12
-#define LED_BLANCO_2 14
-#define LED_CENTRAL_R 18
-#define LED_CENTRAL_G 19
-#define LED_CENTRAL_B 23
-#define LED_BLANCO_3 27
-#define LED_AZUL_3 16
-#define LED_BLANCO_4 17
-#define LED_AZUL_4 25
+#define LED_AZUL_1 14
+#define LED_BLANCO_1 27
+#define LED_AZUL_2 16
+#define LED_BLANCO_2 17
+#define LED_CENTRAL_R 2
+#define LED_CENTRAL_G 4
+#define LED_CENTRAL_B 36
+#define LED_BLANCO_3 25
+#define LED_AZUL_3 26
+#define LED_BLANCO_4 1
+#define LED_AZUL_4 3
 
 // Definición de tiempos
 #define RETARDO 300
