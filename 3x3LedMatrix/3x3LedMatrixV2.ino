@@ -5,9 +5,9 @@
 #define LED_BLANCO_1 27
 #define LED_AZUL_2 16
 #define LED_BLANCO_2 17
-#define LED_CENTRAL_R 13
+#define LED_CENTRAL_R 2
 #define LED_CENTRAL_G 12
-#define LED_CENTRAL_B 2
+#define LED_CENTRAL_B 13
 #define LED_BLANCO_3 25
 #define LED_AZUL_3 26
 #define LED_BLANCO_4 1
