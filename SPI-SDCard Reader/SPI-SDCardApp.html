@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Archivos SD</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background-color: #333;
+            color: #fff;
+            border-radius: 5px;
+        }
+        header h1 {
+            margin: 0;
+        }
+        #statusIndicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #f00;
+            transition: background-color 0.3s;
+        }
+        #statusIndicator.connected {
+            background-color: #0f0;
+        }
+        .container {
+            margin: 20px auto;
+            max-width: 1200px;
+            padding: 20px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 10px 20px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 16px;
+        }
+        .button:hover {
+            background-color: #0056b3;
+        }
+        .button.disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        .input-group input,
+        .input-group button {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .input-group button {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        .input-group button:hover {
+            background-color: #0056b3;
+        }
+        .file-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .file-table th, .file-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .file-table th {
+            background-color: #f4f4f4;
+        }
+        .file-table tr:hover {
+            background-color: #f1f1f1;
+        }
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        .pagination button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 0 5px;
+            cursor: pointer;
+        }
+        .pagination button.active {
+            background-color: #0056b3;
+        }
+        .pagination button:hover {
+            background-color: #0056b3;
+        }
+        .message {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            color: #fff;
+        }
+        .message.success {
+            background-color: #28a745;
+        }
+        .message.error {
+            background-color: #dc3545;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.4);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 5px;
+            width: 80%;
+            max-width: 500px;
+            position: relative;
+        }
+        .modal-content button {
+            margin-top: 10px;
+        }
+        .file-input {
+            display: none;
+        }
+        .drop-zone {
+            border: 2px dashed #007bff;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            background-color: #fff;
+            transition: background-color 0.3s;
+        }
+        .drop-zone.hover {
+            background-color: #f0f8ff;
+        }
+        .loader {
+            display: none;
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .loader.active {
+            display: flex;
+        }
+        .loader:after {
+            content: "";
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #007bff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .file-table td.action-buttons button {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            margin: 0 5px;
+        }
+        .file-table td.action-buttons button i {
+            font-size: 18px;
+        }
+        .file-table td.action-buttons button:hover {
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Gestión de Archivos SD</h1>
+        <div>
+            <input type="text" id="serverIp" placeholder="Ingresa la IP del servidor" required>
+            <button onclick="toggleConnection()">Conectar</button>
+            <div id="statusIndicator"></div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="input-group">
+            <input type="text" id="searchInput" placeholder="Buscar..." onkeyup="filterFiles()">
+            <button onclick="uploadFile()">Subir Archivo(s)</button>
+            <button onclick="createFolder()">Crear Carpeta</button>
+        </div>
+
+        <div id="dropZone" class="drop-zone">
+            Arrastra y suelta archivos aquí
+        </div>
+
+        <input type="file" id="fileInput" class="file-input" multiple>
+
+        <table id="fileTable" class="file-table">
+            <tr>
+                <th>Nombre</th>
+                <th>Detalles</th>
+                <th>Opciones</th>
+            </tr>
+            <!-- Archivos serán cargados aquí -->
+        </table>
+
+        <div class="pagination" id="paginationContainer">
+            <!-- Paginación será cargada aquí -->
+        </div>
+
+        <div id="messageContainer"></div>
+
+        <!-- Modal para renombrar archivo/carpeta -->
+        <div id="renameModal" class="modal">
+            <div class="modal-content">
+                <h2>Renombrar Archivo/Carpeta</h2>
+                <label for="newName">Nuevo Nombre:</label>
+                <input type="text" id="newName" placeholder="Nuevo nombre" required>
+                <button onclick="confirmRename()">Renombrar</button>
+                <button onclick="closeModal('renameModal')">Cancelar</button>
+            </div>
+        </div>
+
+        <!-- Modal para confirmación de eliminación -->
+        <div id="deleteConfirmModal" class="modal">
+            <div class="modal-content">
+                <h2>Confirmación de Eliminación</h2>
+                <p>¿Estás seguro de que deseas eliminar este archivo o carpeta?</p>
+                <button onclick="confirmDelete()">Eliminar</button>
+                <button onclick="closeModal('deleteConfirmModal')">Cancelar</button>
+            </div>
+        </div>
+
+        <!-- Loader -->
+        <div id="loadingIndicator" class="loader"></div>
+    </div>
+
+    <script>
+        let ESP32_IP = '';
+        let currentPage = 1;
+
+        document.getElementById('dropZone').addEventListener('dragover', (event) => {
+            event.preventDefault();
+            document.getElementById('dropZone').classList.add('hover');
+        });
+
+        document.getElementById('dropZone').addEventListener('dragleave', () => {
+            document.getElementById('dropZone').classList.remove('hover');
+        });
+
+        document.getElementById('dropZone').addEventListener('drop', (event) => {
+            event.preventDefault();
+            document.getElementById('dropZone').classList.remove('hover');
+            uploadFiles(event.dataTransfer.files);
+        });
+
+        document.getElementById('fileInput').addEventListener('change', (event) => {
+            uploadFiles(event.target.files);
+        });
+
+        function toggleConnection() {
+            ESP32_IP = document.getElementById('serverIp').value;
+            if (!ESP32_IP) {
+                alert('Por favor ingresa la IP del servidor.');
+                return;
+            }
+
+            const statusIndicator = document.getElementById('statusIndicator');
+            if (statusIndicator.classList.contains('connected')) {
+                statusIndicator.classList.remove('connected');
+                statusIndicator.style.backgroundColor = '#f00';
+                document.querySelector('button[onclick="toggleConnection()"]').textContent = 'Conectar';
+                document.querySelector('button[onclick="toggleConnection()"]').classList.remove('disabled');
+            } else {
+                statusIndicator.classList.add('connected');
+                statusIndicator.style.backgroundColor = '#0f0';
+                document.querySelector('button[onclick="toggleConnection()"]').textContent = 'Desconectar';
+                document.querySelector('button[onclick="toggleConnection()"]').classList.add('disabled');
+                fetchFileList();
+            }
+        }
+
+        function fetchFileList(path = '/', page = 1) {
+            if (!ESP32_IP) {
+                showMessage('Por favor ingresa la IP del servidor.', 'error');
+                return;
+            }
+
+            document.getElementById("loadingIndicator").classList.add("active");
+            fetch(`http://${ESP32_IP}/files?path=${path}&page=${page}`)
+                .then(response => response.json())
+                .then(data => {
+                    renderFileTable(data.files);
+                    renderPagination(data.totalPages, page);
+                    document.getElementById("currentPath").textContent = path;
+                })
+                .catch(error => {
+                    showMessage('Error: ' + error.message, 'error');
+                })
+                .finally(() => {
+                    document.getElementById("loadingIndicator").classList.remove("active");
+                });
+        }
+
+        function renderFileTable(files) {
+            clearFileTable();
+            const fileTable = document.getElementById('fileTable');
+
+            files.forEach(file => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${file.name}</td>
+                    <td>${file.size} bytes</td>
+                    <td class="action-buttons">
+                        <button onclick="downloadFile('${file.path}')"><i class="fas fa-download"></i></button>
+                        <button onclick="openRenameModal('${file.path}')"><i class="fas fa-edit"></i></button>
+                        <button onclick="openDeleteConfirmModal('${file.path}')"><i class="fas fa-trash"></i></button>
+                    </td>
+                `;
+                fileTable.appendChild(row);
+            });
+        }
+
+        function renderPagination(totalPages, currentPage) {
+            const paginationContainer = document.getElementById('paginationContainer');
+            paginationContainer.innerHTML = '';
+
+            for (let i = 1; i <= totalPages; i++) {
+                const button = document.createElement('button');
+                button.textContent = i;
+                button.className = i === currentPage ? 'active' : '';
+                button.onclick = () => fetchFileList(document.getElementById("currentPath").textContent, i);
+                paginationContainer.appendChild(button);
+            }
+        }
+
+        function uploadFiles(files) {
+            if (!ESP32_IP) {
+                showMessage('Por favor ingresa la IP del servidor.', 'error');
+                return;
+            }
+
+            document.getElementById("loadingIndicator").classList.add("active");
+
+            const formData = new FormData();
+            Array.from(files).forEach(file => formData.append('files[]', file));
+
+            fetch(`http://${ESP32_IP}/upload`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(result => {
+                showMessage('Archivos subidos correctamente.');
+                fetchFileList(document.getElementById("currentPath").textContent, currentPage);
+            })
+            .catch(error => {
+                showMessage('Error: ' + error.message, 'error');
+            })
+            .finally(() => {
+                document.getElementById("loadingIndicator").classList.remove("active");
+            });
+        }
+
+        function uploadFile() {
+            document.getElementById('fileInput').click();
+        }
+
+        function createFolder() {
+            const folderName = prompt('Ingrese el nombre de la nueva carpeta:');
+            if (folderName) {
+                if (!ESP32_IP) {
+                    showMessage('Por favor ingresa la IP del servidor.', 'error');
+                    return;
+                }
+
+                document.getElementById("loadingIndicator").classList.add("active");
+
+                fetch(`http://${ESP32_IP}/createfolder`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ foldername: folderName })
+                })
+                .then(response => response.json())
+                .then(result => {
+                    showMessage('Carpeta creada correctamente.');
+                    fetchFileList(document.getElementById("currentPath").textContent, currentPage);
+                })
+                .catch(error => {
+                    showMessage('Error: ' + error.message, 'error');
+                })
+                .finally(() => {
+                    document.getElementById("loadingIndicator").classList.remove("active");
+                });
+            }
+        }
+
+        function openRenameModal(path) {
+            document.getElementById('renameModal').style.display = 'flex';
+            document.getElementById('renameModal').dataset.path = path;
+        }
+
+        function openDeleteConfirmModal(path) {
+            document.getElementById('deleteConfirmModal').style.display = 'flex';
+            document.getElementById('deleteConfirmModal').dataset.path = path;
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        function confirmRename() {
+            const path = document.getElementById('renameModal').dataset.path;
+            const newName = document.getElementById('newName').value;
+
+            if (!newName) {
+                showMessage('Por favor ingresa un nuevo nombre.', 'error');
+                return;
+            }
+
+            if (!ESP32_IP) {
+                showMessage('Por favor ingresa la IP del servidor.', 'error');
+                return;
+            }
+
+            document.getElementById("loadingIndicator").classList.add("active");
+
+            fetch(`http://${ESP32_IP}/rename`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ oldname: path, newname: newName })
+            })
+            .then(response => response.json())
+            .then(result => {
+                showMessage('Archivo/Carpeta renombrado correctamente.');
+                fetchFileList(document.getElementById("currentPath").textContent, currentPage);
+                closeModal('renameModal');
+            })
+            .catch(error => {
+                showMessage('Error: ' + error.message, 'error');
+            })
+            .finally(() => {
+                document.getElementById("loadingIndicator").classList.remove("active");
+            });
+        }
+
+        function confirmDelete() {
+            const path = document.getElementById('deleteConfirmModal').dataset.path;
+
+            if (!ESP32_IP) {
+                showMessage('Por favor ingresa la IP del servidor.', 'error');
+                return;
+            }
+
+            document.getElementById("loadingIndicator").classList.add("active");
+
+            fetch(`http://${ESP32_IP}/delete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: path })
+            })
+            .then(response => response.json())
+            .then(result => {
+                showMessage('Archivo/Carpeta eliminado correctamente.');
+                fetchFileList(document.getElementById("currentPath").textContent, currentPage);
+                closeModal('deleteConfirmModal');
+            })
+            .catch(error => {
+                showMessage('Error: ' + error.message, 'error');
+            })
+            .finally(() => {
+                document.getElementById("loadingIndicator").classList.remove("active");
+            });
+        }
+
+        function filterFiles() {
+            const filter = document.getElementById('searchInput').value.toLowerCase();
+            const rows = document.querySelectorAll('#fileTable tr:not(:first-child)');
+            rows.forEach(row => {
+                const name = row.cells[0].textContent.toLowerCase();
+                row.style.display = name.includes(filter) ? '' : 'none';
+            });
+        }
+
+        function downloadFile(path) {
+            window.location.href = `http://${ESP32_IP}/download?path=${encodeURIComponent(path)}`;
+        }
+
+        function showMessage(message, type = 'success') {
+            const messageContainer = document.getElementById('messageContainer');
+            const messageElement = document.createElement('div');
+            messageElement.className = 'message ' + type;
+            messageElement.textContent = message;
+            messageContainer.appendChild(messageElement);
+            setTimeout(() => {
+                messageElement.remove();
+            }, 5000);
+        }
+
+        function clearFileTable() {
+            const fileTable = document.getElementById('fileTable');
+            fileTable.querySelectorAll('tr:not(:first-child)').forEach(row => row.remove());
+        }
+    </script>
+</body>
+</html>
