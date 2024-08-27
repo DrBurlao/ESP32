@@ -1,614 +1,463 @@
-#include <Arduino.h>
+#include <WiFi.h>
+#include <WebServer.h>
 
-// Definición de pines
-#define LED_AZUL_1 14
-#define LED_BLANCO_1 27
-#define LED_AZUL_2 16
-#define LED_BLANCO_2 17
-#define LED_CENTRAL_R 22
-#define LED_CENTRAL_G 12
-#define LED_CENTRAL_B 13
-#define LED_BLANCO_3 0
-#define LED_AZUL_3 26
-#define LED_BLANCO_4 1
-#define LED_AZUL_4 3
+// Definir los pines para cada LED
+#define LED_AZUL_1 14   // Esquina superior izquierda
+#define LED_BLANCO_1 27 // Lado superior
+#define LED_AZUL_2 16  // Esquina superior derecha
+#define LED_BLANCO_2 17 // Lado izquierdo
+#define LED_CENTRAL_R 22 // LED Central - Rojo
+#define LED_CENTRAL_G 12 // LED Central - Verde
+#define LED_CENTRAL_B 13 // LED Central - Azul
+#define LED_BLANCO_3 0 // Lado derecho
+#define LED_AZUL_3 26  // Esquina inferior izquierda
+#define LED_BLANCO_4 1 // Lado inferior
+#define LED_AZUL_4 3  // Esquina inferior derecha
 
-// Definición de tiempos
-#define RETARDO 300
-#define FADE_DELAY 10
-#define MAX_BRIGHTNESS 255
-#define CAMBIO_PATROON_INTERVALO 10000
-#define CASCADA_INTERVALO 100
-#define RESPIRACION_DELAY 20
-#define ESTRELLA_INTERVALO 200
-#define LLUVIA_ESTRELLAS_INTERVALO 100
-#define MODO_TEMPO 20000
-#define DIANA_INTERVALO 150
-#define ALARMA_INTERVALO 100
-#define OLA_INTERVALO 100
-#define NIEBLA_INTERVALO 50
-#define GRADUAL_COLOR_INTERVALO 50
-#define ARCOIRIS_INTERVALO 30
-#define EXPLOSION_COLOR_INTERVALO 50
-#define FLAMA_INTERVALO 100
-#define NEBULOSA_INTERVALO 100
-#define ESPIRAL_INTERVALO 50
-#define VORTICE_INTERVALO 100
-#define CORAZON_INTERVALO 500
-#define RUIDO_COLOR_INTERVALO 20
-#define CAMBIO_RAPIDO_COLOR_INTERVALO 30
-#define ONDA_COLOR_INTERVALO 50
-#define PULSAR_INTERVALO 100
-#define RASTRO_ESTRELLA_INTERVALO 150
-#define NIEBLA_COLOR_INTERVALO 100
-#define MOVIMIENTO_COLOR_INTERVALO 50
+// Crear una instancia del servidor web en el puerto 80
+WebServer server(80);
 
-unsigned long lastChange = 0;
-unsigned long lastCascada = 0;
-unsigned long lastRespiracion = 0;
-unsigned long lastEstrella = 0;
-unsigned long lastLluviaEstrellas = 0;
-unsigned long lastModoTempo = 0;
-unsigned long lastDiana = 0;
-unsigned long lastAlarma = 0;
-unsigned long lastOla = 0;
-unsigned long lastNiebla = 0;
-unsigned long lastGradualColor = 0;
-unsigned long lastArcoiris = 0;
-unsigned long lastExplosionColor = 0;
-unsigned long lastFlama = 0;
-unsigned long lastNebulosa = 0;
-unsigned long lastEspiral = 0;
-unsigned long lastVortice = 0;
-unsigned long lastCorazon = 0;
-unsigned long lastRuidoColor = 0;
-unsigned long lastCambioRapidoColor = 0;
-unsigned long lastOndaColor = 0;
-unsigned long lastPulsar = 0;
-unsigned long lastRastroEstrella = 0;
-unsigned long lastNieblaColor = 0;
-unsigned long lastMovimientoColor = 0;
+unsigned long previousMillis = 0;  // Para el tiempo transcurrido
+const long interval = 30000;       // Intervalo de 30 segundos
+int currentAnimation = 0;          // Índice de la animación actual
+bool autoMode = true;              // Modo automático para cambiar animaciones
 
-int modoPatron = 0;
-int cascadaPos = 0;
-int estrellaPos = 0;
-int dianaPos = 0;
-int olaPos = 0;
-int nieblaBrillo = 0;
-int arcoirisHue = 0;
-int explosionColor = 0;
-bool estrellaDirec = true;
-int espiralPos = 0;
-int vorticeHue = 0;
-int corazonBrillo = 0;
-int ruidoColorBrillo = 0;
-int ondaColorHue = 0;
-int pulsarBrillo = 0;
-int rastroEstrellaPos = 0;
-int nieblaColorHue = 0;
-int movimientoColorPos = 0;
+// Nombre y contraseña de la red WiFi
+const char* ssid = "ESP32-LED-Control";
+const char* password = "12345678";
 
 void setup() {
-  // Configuración de pines como salidas
+  // Configurar los pines como salidas
   pinMode(LED_AZUL_1, OUTPUT);
   pinMode(LED_BLANCO_1, OUTPUT);
   pinMode(LED_AZUL_2, OUTPUT);
   pinMode(LED_BLANCO_2, OUTPUT);
+  pinMode(LED_CENTRAL_R, OUTPUT);
+  pinMode(LED_CENTRAL_G, OUTPUT);
+  pinMode(LED_CENTRAL_B, OUTPUT);
   pinMode(LED_BLANCO_3, OUTPUT);
   pinMode(LED_AZUL_3, OUTPUT);
   pinMode(LED_BLANCO_4, OUTPUT);
   pinMode(LED_AZUL_4, OUTPUT);
 
-  // Inicialización de LEDs (todos apagados)
-  apagarLeds();
+  // Configurar y lanzar el AP WiFi
+  WiFi.softAP(ssid, password);
 
-  // Inicialización del PWM para el LED RGB central
-  ledcSetup(0, 5000, 8); // Canal 0, 5kHz, 8 bits de resolución
-  ledcAttachPin(LED_CENTRAL_R, 0);
-  ledcSetup(1, 5000, 8); // Canal 1, 5kHz, 8 bits de resolución
-  ledcAttachPin(LED_CENTRAL_G, 1);
-  ledcSetup(2, 5000, 8); // Canal 2, 5kHz, 8 bits de resolución
-  ledcAttachPin(LED_CENTRAL_B, 2);
+  // Manejar peticiones web
+  server.on("/", handleRoot);  // Página principal
+  server.on("/setAnimation", handleSetAnimation);  // Cambiar animación
+  server.on("/toggleAutoMode", handleToggleAutoMode);  // Cambiar modo automático/manual
+
+  server.begin();  // Iniciar servidor web
 }
 
 void loop() {
+  server.handleClient();  // Manejar peticiones de clientes
+
   unsigned long currentMillis = millis();
 
-  // Cambia de patrón automáticamente basado en el tiempo
-  if (currentMillis - lastModoTempo >= MODO_TEMPO) {
-    modoPatron = (modoPatron + 1) % 20; // Alterna entre 20 patrones
-    lastModoTempo = currentMillis;
+  // Cambiar de animación cada 30 segundos en modo automático
+  if (autoMode && currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis;
+    currentAnimation++;
+    if (currentAnimation > 19) { // Cambiar entre 20 animaciones (0 a 19)
+      currentAnimation = 0;
+    }
   }
 
-  // Ejecuta el patrón seleccionado
-  switch (modoPatron) {
+  // Seleccionar la animación actual
+  switch (currentAnimation) {
     case 0:
-      efectoParpadeo();
+      allBlink();
       break;
     case 1:
-      efectoFade();
+      animateCenterLED();
       break;
     case 2:
-      efectoColoresAleatorios();
+      runningLight();
       break;
     case 3:
-      efectoCascada();
+      fadeInOut();
       break;
     case 4:
-      efectoEstrellaFugaz();
+      chasingLight();
       break;
     case 5:
-      efectoLluviaEstrellas();
+      randomBlink();
       break;
     case 6:
-      efectoDiana();
+      waveEffect();
       break;
     case 7:
-      efectoAlarma();
+      spiralEffect();
       break;
     case 8:
-      efectoArcoiris();
+      colorPulse();
       break;
     case 9:
-      efectoExplosionColor();
+      bounceEffect();
       break;
     case 10:
-      efectoFlama();
+      breathingLight();
       break;
     case 11:
-      efectoNebulosa();
+      diagonalWave();
       break;
     case 12:
-      efectoEspiral();
+      randomColorChange();
       break;
     case 13:
-      efectoVortice();
+      flashCorners();
       break;
     case 14:
-      efectoCorazon();
+      alternatingLines();
       break;
     case 15:
-      efectoRuidoColor();
+      circleEffect();
       break;
     case 16:
-      efectoCambioRapidoColor();
+      expandingSquare();
       break;
     case 17:
-      efectoOndaColor();
+      randomWalk();
       break;
     case 18:
-      efectoPulsar();
+      crossPattern();
       break;
     case 19:
-      efectoRastroEstrella();
+      starPattern();
       break;
   }
+}
 
-  // Efecto de Niebla Colorida
-  unsigned long currentNieblaColor = millis();
-  if (currentNieblaColor - lastNieblaColor >= NIEBLA_COLOR_INTERVALO) {
-    lastNieblaColor = currentNieblaColor;
-    efectoNieblaColor();
+// Animación 1: Todos los LEDs parpadean
+void allBlink() {
+  setAllLEDs(HIGH);
+  delay(250);
+  setAllLEDs(LOW);
+  delay(250);
+}
+
+// Animación 2: Animar el LED central RGB
+void animateCenterLED() {
+  static int colorState = 0;
+  setAllCentralLEDs(LOW);
+
+  switch (colorState) {
+    case 0: digitalWrite(LED_CENTRAL_R, HIGH); break;
+    case 1: digitalWrite(LED_CENTRAL_G, HIGH); break;
+    case 2: digitalWrite(LED_CENTRAL_B, HIGH); break;
+    case 3: digitalWrite(LED_CENTRAL_R, HIGH); digitalWrite(LED_CENTRAL_G, HIGH); break;
+    case 4: digitalWrite(LED_CENTRAL_G, HIGH); digitalWrite(LED_CENTRAL_B, HIGH); break;
+    case 5: digitalWrite(LED_CENTRAL_R, HIGH); digitalWrite(LED_CENTRAL_B, HIGH); break;
+    case 6: setAllCentralLEDs(HIGH); break;
   }
 
-  // Efecto de Movimiento de Color
-  unsigned long currentMovimientoColor = millis();
-  if (currentMovimientoColor - lastMovimientoColor >= MOVIMIENTO_COLOR_INTERVALO) {
-    lastMovimientoColor = currentMovimientoColor;
-    efectoMovimientoColor();
+  colorState = (colorState + 1) % 7;
+  delay(500);
+}
+
+// Animación 3: Efecto de luz en movimiento
+void runningLight() {
+  int order[] = {LED_AZUL_1, LED_BLANCO_1, LED_AZUL_2, LED_BLANCO_3, LED_AZUL_4, LED_BLANCO_4, LED_AZUL_3, LED_BLANCO_2};
+  for (int i = 0; i < 8; i++) {
+    digitalWrite(order[i], HIGH);
+    delay(100);
+    digitalWrite(order[i], LOW);
   }
 }
 
-void efectoParpadeo() {
-  // Parpadeo sincronizado en todos los LEDs
-  encenderLeds();
-  delay(RETARDO);
-  apagarLeds();
-  delay(RETARDO);
-}
-
-void efectoFade() {
-  // Efecto de fundido en el LED RGB central
-  for (int brightness = 0; brightness <= MAX_BRIGHTNESS; brightness += 5) {
-    setColor(brightness, 0, 0);  // Rojo
-    delay(FADE_DELAY);
+// Animación 4: Fade In y Fade Out del LED central
+void fadeInOut() {
+  for (int brightness = 0; brightness <= 255; brightness += 5) {
+    analogWrite(LED_CENTRAL_R, brightness);
+    analogWrite(LED_CENTRAL_G, brightness);
+    analogWrite(LED_CENTRAL_B, brightness);
+    delay(30);
   }
-  for (int brightness = MAX_BRIGHTNESS; brightness >= 0; brightness -= 5) {
-    setColor(brightness, 0, 0);  // Rojo
-    delay(FADE_DELAY);
-  }
-  for (int brightness = 0; brightness <= MAX_BRIGHTNESS; brightness += 5) {
-    setColor(0, brightness, 0);  // Verde
-    delay(FADE_DELAY);
-  }
-  for (int brightness = MAX_BRIGHTNESS; brightness >= 0; brightness -= 5) {
-    setColor(0, brightness, 0);  // Verde
-    delay(FADE_DELAY);
-  }
-  for (int brightness = 0; brightness <= MAX_BRIGHTNESS; brightness += 5) {
-    setColor(0, 0, brightness);  // Azul
-    delay(FADE_DELAY);
-  }
-  for (int brightness = MAX_BRIGHTNESS; brightness >= 0; brightness -= 5) {
-    setColor(0, 0, brightness);  // Azul
-    delay(FADE_DELAY);
+  for (int brightness = 255; brightness >= 0; brightness -= 5) {
+    analogWrite(LED_CENTRAL_R, brightness);
+    analogWrite(LED_CENTRAL_G, brightness);
+    analogWrite(LED_CENTRAL_B, brightness);
+    delay(30);
   }
 }
 
-void efectoColoresAleatorios() {
-  // Colores aleatorios en el LED RGB central
-  setColor(random(0, MAX_BRIGHTNESS), random(0, MAX_BRIGHTNESS), random(0, MAX_BRIGHTNESS));
-  delay(RETARDO);
-}
-
-void efectoCascada() {
-  unsigned long currentMillis = millis();
-  if (currentMillis - lastCascada >= CASCADA_INTERVALO) {
-    lastCascada = currentMillis;
-
-    // Apagar todos los LEDs
-    apagarLeds();
-
-    // Crear efecto de cascada
-    int leds[] = {LED_AZUL_1, LED_BLANCO_1, LED_AZUL_2, LED_BLANCO_2, LED_BLANCO_3, LED_AZUL_3, LED_BLANCO_4, LED_AZUL_4};
-    digitalWrite(leds[cascadaPos], HIGH);
-
-    // Avanzar posición en la cascada
-    cascadaPos = (cascadaPos + 1) % 8;
+// Animación 5: Luces persiguiéndose
+void chasingLight() {
+  int order[] = {LED_AZUL_1, LED_BLANCO_1, LED_AZUL_2, LED_BLANCO_3, LED_AZUL_4, LED_BLANCO_4, LED_AZUL_3, LED_BLANCO_2};
+  for (int i = 0; i < 8; i++) {
+    digitalWrite(order[i], HIGH);
+    delay(100);
+    digitalWrite(order[i], LOW);
   }
 }
 
-void efectoEstrellaFugaz() {
-  unsigned long currentMillis = millis();
-  if (currentMillis - lastEstrella >= ESTRELLA_INTERVALO) {
-    lastEstrella = currentMillis;
-
-    // Apagar todos los LEDs
-    apagarLeds();
-
-    // Crear efecto de estrella fugaz
-    int leds[] = {LED_AZUL_1, LED_BLANCO_1, LED_AZUL_2, LED_BLANCO_2, LED_BLANCO_3, LED_AZUL_3, LED_BLANCO_4, LED_AZUL_4};
-    digitalWrite(leds[estrellaPos], HIGH);
-
-    // Mover la estrella fugaz
-    estrellaPos = estrellaDirec ? (estrellaPos + 1) % 8 : (estrellaPos - 1 + 8) % 8;
-
-    // Cambiar dirección cuando llegue a los bordes
-    if (estrellaPos == 0 || estrellaPos == 7) {
-      estrellaDirec = !estrellaDirec;
-    }
-  }
-}
-
-void efectoLluviaEstrellas() {
-  unsigned long currentMillis = millis();
-  if (currentMillis - lastLluviaEstrellas >= LLUVIA_ESTRELLAS_INTERVALO) {
-    lastLluviaEstrellas = currentMillis;
-
-    // Apagar todos los LEDs
-    apagarLeds();
-
-    // Crear efecto de lluvia de estrellas
-    int numEstrellas = 3; // Número de estrellas en la lluvia
-    for (int i = 0; i < numEstrellas; i++) {
-      int led = random(0, 8);
-      int leds[] = {LED_AZUL_1, LED_BLANCO_1, LED_AZUL_2, LED_BLANCO_2, LED_BLANCO_3, LED_AZUL_3, LED_BLANCO_4, LED_AZUL_4};
-      digitalWrite(leds[led], HIGH);
-    }
-  }
-}
-
-void efectoDiana() {
-  unsigned long currentMillis = millis();
-  if (currentMillis - lastDiana >= DIANA_INTERVALO) {
-    lastDiana = currentMillis;
-
-    // Apagar todos los LEDs
-    apagarLeds();
-
-    // Crear efecto de diana
-    int leds[] = {LED_AZUL_1, LED_BLANCO_1, LED_AZUL_2, LED_BLANCO_2, LED_BLANCO_3, LED_AZUL_3, LED_BLANCO_4, LED_AZUL_4};
-    int numLeds = sizeof(leds) / sizeof(leds[0]);
-
-    // Encender LEDs en patrón circular
-    digitalWrite(leds[dianaPos], HIGH);
-    digitalWrite(leds[(dianaPos + 1) % numLeds], HIGH);
-    digitalWrite(leds[(dianaPos + 2) % numLeds], HIGH);
-    
-    // Mover la posición de la diana
-    dianaPos = (dianaPos + 1) % numLeds;
-  }
-}
-
-void efectoAlarma() {
-  unsigned long currentMillis = millis();
-  if (currentMillis - lastAlarma >= ALARMA_INTERVALO) {
-    lastAlarma = currentMillis;
-
-    // Alternar LEDs para crear un efecto de alarma
-    static bool alarmaEstado = false;
-    alarmaEstado = !alarmaEstado;
-
-    if (alarmaEstado) {
-      encenderLeds();
-    } else {
-      apagarLeds();
-    }
-  }
-}
-
-void efectoOla() {
-  unsigned long currentMillis = millis();
-  if (currentMillis - lastOla >= OLA_INTERVALO) {
-    lastOla = currentMillis;
-
-    // Apagar todos los LEDs
-    apagarLeds();
-
-    // Crear efecto de ola
-    int leds[] = {LED_AZUL_1, LED_BLANCO_1, LED_AZUL_2, LED_BLANCO_2, LED_BLANCO_3, LED_AZUL_3, LED_BLANCO_4, LED_AZUL_4};
-    int numLeds = sizeof(leds) / sizeof(leds[0]);
-
-    // Encender LEDs en patrón de ola
-    digitalWrite(leds[(olaPos + 0) % numLeds], HIGH);
-    digitalWrite(leds[(olaPos + 1) % numLeds], HIGH);
-    digitalWrite(leds[(olaPos + 2) % numLeds], HIGH);
-
-    // Mover la ola
-    olaPos = (olaPos + 1) % numLeds;
-  }
-}
-
-void efectoNiebla() {
-  // Efecto de luz de niebla en el LED RGB Central
-  nieblaBrillo = (nieblaBrillo + 5) % (MAX_BRIGHTNESS + 1);
-  setColor(nieblaBrillo, nieblaBrillo, nieblaBrillo);
-  delay(NIEBLA_INTERVALO);
-}
-
-void efectoGradualColor() {
-  // Cambio gradual de color en el LED RGB Central
-  static int r = 0, g = 0, b = 0;
-  r = (r + 1) % (MAX_BRIGHTNESS + 1);
-  g = (g + 2) % (MAX_BRIGHTNESS + 1);
-  b = (b + 3) % (MAX_BRIGHTNESS + 1);
-  setColor(r, g, b);
-  delay(GRADUAL_COLOR_INTERVALO);
-}
-
-void efectoArcoiris() {
-  unsigned long currentMillis = millis();
-  if (currentMillis - lastArcoiris >= ARCOIRIS_INTERVALO) {
-    lastArcoiris = currentMillis;
-
-    // Generar un color en el espectro del arcoíris
-    int r = sin(3.14 * arcoirisHue / 180.0) * MAX_BRIGHTNESS;
-    int g = sin(3.14 * (arcoirisHue + 120) / 180.0) * MAX_BRIGHTNESS;
-    int b = sin(3.14 * (arcoirisHue + 240) / 180.0) * MAX_BRIGHTNESS;
-
-    setColor(r, g, b);
-
-    arcoirisHue = (arcoirisHue + 5) % 360;  // Avanzar en el espectro del arcoíris
-  }
-}
-
-void efectoExplosionColor() {
-  unsigned long currentMillis = millis();
-  if (currentMillis - lastExplosionColor >= EXPLOSION_COLOR_INTERVALO) {
-    lastExplosionColor = currentMillis;
-
-    // Cambiar a un color aleatorio brillante
-    int r = random(0, MAX_BRIGHTNESS);
-    int g = random(0, MAX_BRIGHTNESS);
-    int b = random(0, MAX_BRIGHTNESS);
-    setColor(r, g, b);
-  }
-}
-
-void efectoFlama() {
-  unsigned long currentMillis = millis();
-  if (currentMillis - lastFlama >= FLAMA_INTERVALO) {
-    lastFlama = currentMillis;
-
-    // Generar un efecto de flama
-    int r = random(150, 255);
-    int g = random(50, 150);
-    int b = 0;
-    setColor(r, g, b);
-  }
-}
-
-void efectoNebulosa() {
-  unsigned long currentMillis = millis();
-  if (currentMillis - lastNebulosa >= NEBULOSA_INTERVALO) {
-    lastNebulosa = currentMillis;
-
-    // Generar un color difuso
-    int r = random(50, 100);
-    int g = random(50, 100);
-    int b = random(50, 100);
-    setColor(r, g, b);
-  }
-}
-
-void efectoEspiral() {
-  unsigned long currentMillis = millis();
-  if (currentMillis - lastEspiral >= ESPIRAL_INTERVALO) {
-    lastEspiral = currentMillis;
-
-    // Apagar todos los LEDs
-    apagarLeds();
-
-    // Crear efecto de espiral
-    int leds[] = {LED_AZUL_1, LED_BLANCO_1, LED_AZUL_2, LED_BLANCO_2, LED_BLANCO_3, LED_AZUL_3, LED_BLANCO_4, LED_AZUL_4};
-    int numLeds = sizeof(leds) / sizeof(leds[0]);
-
-    // Encender LEDs en patrón de espiral
-    digitalWrite(leds[espiralPos], HIGH);
-    espiralPos = (espiralPos + 1) % numLeds;
-  }
-}
-
-void efectoVortice() {
-  unsigned long currentMillis = millis();
-  if (currentMillis - lastVortice >= VORTICE_INTERVALO) {
-    lastVortice = currentMillis;
-
-    // Apagar todos los LEDs
-    apagarLeds();
-
-    // Crear efecto de vórtice
-    int numLeds = 8;
-    int leds[] = {LED_AZUL_1, LED_BLANCO_1, LED_AZUL_2, LED_BLANCO_2, LED_BLANCO_3, LED_AZUL_3, LED_BLANCO_4, LED_AZUL_4};
-    int index = (vorticeHue / 45) % numLeds;
+// Animación 6: LEDs parpadeando de forma aleatoria
+void randomBlink() {
+  int leds[] = {LED_AZUL_1, LED_BLANCO_1, LED_AZUL_2, LED_BLANCO_2, LED_CENTRAL_R, LED_CENTRAL_G, LED_CENTRAL_B, LED_BLANCO_3, LED_AZUL_3, LED_BLANCO_4, LED_AZUL_4};
+  for (int i = 0; i < 10; i++) {
+    int index = random(11);
     digitalWrite(leds[index], HIGH);
-    digitalWrite(leds[(index + 1) % numLeds], HIGH);
-
-    vorticeHue = (vorticeHue + 10) % 360;
+    delay(200);
+    digitalWrite(leds[index], LOW);
   }
 }
 
-void efectoCorazon() {
-  unsigned long currentMillis = millis();
-  if (currentMillis - lastCorazon >= CORAZON_INTERVALO) {
-    lastCorazon = currentMillis;
-
-    // Apagar todos los LEDs
-    apagarLeds();
-
-    // Crear efecto de corazón (latido)
-    corazonBrillo = (corazonBrillo + 5) % (MAX_BRIGHTNESS + 1);
-    setColor(corazonBrillo, 0, 0); // Rojo intenso
+// Animación 7: Efecto de onda
+void waveEffect() {
+  int wave[] = {LED_AZUL_1, LED_BLANCO_1, LED_AZUL_2, LED_BLANCO_3, LED_AZUL_4, LED_BLANCO_4, LED_AZUL_3, LED_BLANCO_2};
+  for (int i = 0; i < 8; i++) {
+    digitalWrite(wave[i], HIGH);
+    delay(150);
+    digitalWrite(wave[i], LOW);
   }
 }
 
-void efectoRuidoColor() {
-  unsigned long currentMillis = millis();
-  if (currentMillis - lastRuidoColor >= RUIDO_COLOR_INTERVALO) {
-    lastRuidoColor = currentMillis;
-
-    // Generar un color aleatorio
-    int r = random(0, MAX_BRIGHTNESS);
-    int g = random(0, MAX_BRIGHTNESS);
-    int b = random(0, MAX_BRIGHTNESS);
-    setColor(r, g, b);
+// Animación 8: Efecto de espiral
+void spiralEffect() {
+  int spiral[] = {LED_AZUL_1, LED_BLANCO_1, LED_AZUL_2, LED_BLANCO_3, LED_AZUL_4, LED_BLANCO_4, LED_AZUL_3, LED_BLANCO_2};
+  for (int i = 0; i < 8; i++) {
+    digitalWrite(spiral[i], HIGH);
+    delay(100);
+    digitalWrite(spiral[i], LOW);
   }
 }
 
-void efectoCambioRapidoColor() {
-  unsigned long currentMillis = millis();
-  if (currentMillis - lastCambioRapidoColor >= CAMBIO_RAPIDO_COLOR_INTERVALO) {
-    lastCambioRapidoColor = currentMillis;
-
-    // Cambiar a un color aleatorio brillante
-    int r = random(0, MAX_BRIGHTNESS);
-    int g = random(0, MAX_BRIGHTNESS);
-    int b = random(0, MAX_BRIGHTNESS);
-    setColor(r, g, b);
+// Animación 9: Pulsos de color en el LED central
+void colorPulse() {
+  for (int brightness = 0; brightness <= 255; brightness += 5) {
+    analogWrite(LED_CENTRAL_R, brightness);
+    analogWrite(LED_CENTRAL_G, brightness);
+    analogWrite(LED_CENTRAL_B, brightness);
+    delay(30);
+  }
+  for (int brightness = 255; brightness >= 0; brightness -= 5) {
+    analogWrite(LED_CENTRAL_R, brightness);
+    analogWrite(LED_CENTRAL_G, brightness);
+    analogWrite(LED_CENTRAL_B, brightness);
+    delay(30);
   }
 }
 
-void efectoOndaColor() {
-  unsigned long currentMillis = millis();
-  if (currentMillis - lastOndaColor >= ONDA_COLOR_INTERVALO) {
-    lastOndaColor = currentMillis;
-
-    // Generar un color en forma de onda
-    int r = sin(3.14 * ondaColorHue / 180.0) * MAX_BRIGHTNESS;
-    int g = sin(3.14 * (ondaColorHue + 120) / 180.0) * MAX_BRIGHTNESS;
-    int b = sin(3.14 * (ondaColorHue + 240) / 180.0) * MAX_BRIGHTNESS;
-
-    setColor(r, g, b);
-
-    ondaColorHue = (ondaColorHue + 10) % 360;  // Avanzar en el espectro de onda de color
+// Animación 10: Efecto de rebote
+void bounceEffect() {
+  int bounce[] = {LED_AZUL_1, LED_BLANCO_1, LED_AZUL_2, LED_BLANCO_3, LED_AZUL_4, LED_BLANCO_4, LED_AZUL_3, LED_BLANCO_2};
+  for (int i = 0; i < 8; i++) {
+    digitalWrite(bounce[i], HIGH);
+    delay(100);
+    digitalWrite(bounce[i], LOW);
+  }
+  for (int i = 7; i >= 0; i--) {
+    digitalWrite(bounce[i], HIGH);
+    delay(100);
+    digitalWrite(bounce[i], LOW);
   }
 }
 
-void efectoPulsar() {
-  unsigned long currentMillis = millis();
-  if (currentMillis - lastPulsar >= PULSAR_INTERVALO) {
-    lastPulsar = currentMillis;
-
-    // Efecto de pulso en el LED RGB central
-    pulsarBrillo = (pulsarBrillo + 5) % (MAX_BRIGHTNESS + 1);
-    setColor(pulsarBrillo, pulsarBrillo / 2, pulsarBrillo / 2); // Rojo con brillo pulsante
+// Animación 11: Respiración suave de luces
+void breathingLight() {
+  for (int brightness = 0; brightness <= 255; brightness += 5) {
+    analogWrite(LED_AZUL_1, brightness);
+    analogWrite(LED_BLANCO_1, brightness);
+    analogWrite(LED_AZUL_2, brightness);
+    analogWrite(LED_BLANCO_3, brightness);
+    analogWrite(LED_AZUL_4, brightness);
+    analogWrite(LED_BLANCO_4, brightness);
+    analogWrite(LED_AZUL_3, brightness);
+    analogWrite(LED_BLANCO_2, brightness);
+    delay(50);
+  }
+  for (int brightness = 255; brightness >= 0; brightness -= 5) {
+    analogWrite(LED_AZUL_1, brightness);
+    analogWrite(LED_BLANCO_1, brightness);
+    analogWrite(LED_AZUL_2, brightness);
+    analogWrite(LED_BLANCO_3, brightness);
+    analogWrite(LED_AZUL_4, brightness);
+    analogWrite(LED_BLANCO_4, brightness);
+    analogWrite(LED_AZUL_3, brightness);
+    analogWrite(LED_BLANCO_2, brightness);
+    delay(50);
   }
 }
 
-void efectoRastroEstrella() {
-  unsigned long currentMillis = millis();
-  if (currentMillis - lastRastroEstrella >= RASTRO_ESTRELLA_INTERVALO) {
-    lastRastroEstrella = currentMillis;
-
-    // Apagar todos los LEDs
-    apagarLeds();
-
-    // Crear efecto de rastro de estrella
-    int leds[] = {LED_AZUL_1, LED_BLANCO_1, LED_AZUL_2, LED_BLANCO_2, LED_BLANCO_3, LED_AZUL_3, LED_BLANCO_4, LED_AZUL_4};
-    int numLeds = sizeof(leds) / sizeof(leds[0]);
-
-    // Encender LEDs en patrón de rastro
-    for (int i = 0; i <= rastroEstrellaPos; i++) {
-      digitalWrite(leds[i % numLeds], HIGH);
-    }
-
-    // Mover la posición del rastro
-    rastroEstrellaPos = (rastroEstrellaPos + 1) % numLeds;
+// Animación 12: Onda diagonal
+void diagonalWave() {
+  int diagonal[] = {LED_AZUL_1, LED_BLANCO_2, LED_AZUL_3, LED_BLANCO_4, LED_AZUL_4, LED_BLANCO_3, LED_AZUL_2, LED_BLANCO_1};
+  for (int i = 0; i < 8; i++) {
+    digitalWrite(diagonal[i], HIGH);
+    delay(100);
+    digitalWrite(diagonal[i], LOW);
   }
 }
 
-void efectoNieblaColor() {
-  unsigned long currentMillis = millis();
-  if (currentMillis - lastNieblaColor >= NIEBLA_COLOR_INTERVALO) {
-    lastNieblaColor = currentMillis;
-
-    // Generar un color de niebla
-    int r = random(100, 150);
-    int g = random(100, 150);
-    int b = random(100, 150);
-    setColor(r, g, b);
+// Animación 13: Cambio de color aleatorio
+void randomColorChange() {
+  int leds[] = {LED_CENTRAL_R, LED_CENTRAL_G, LED_CENTRAL_B};
+  for (int i = 0; i < 3; i++) {
+    digitalWrite(leds[i], HIGH);
+    delay(random(100, 500));
+    digitalWrite(leds[i], LOW);
   }
 }
 
-void efectoMovimientoColor() {
-  unsigned long currentMillis = millis();
-  if (currentMillis - lastMovimientoColor >= MOVIMIENTO_COLOR_INTERVALO) {
-    lastMovimientoColor = currentMillis;
-
-    // Crear efecto de movimiento de color en el LED RGB Central
-    int r = random(0, MAX_BRIGHTNESS);
-    int g = random(0, MAX_BRIGHTNESS);
-    int b = random(0, MAX_BRIGHTNESS);
-    setColor(r, g, b);
+// Animación 14: Parpadeo de las esquinas
+void flashCorners() {
+  int corners[] = {LED_AZUL_1, LED_AZUL_2, LED_AZUL_3, LED_AZUL_4};
+  for (int i = 0; i < 4; i++) {
+    digitalWrite(corners[i], HIGH);
+    delay(150);
+    digitalWrite(corners[i], LOW);
   }
 }
 
-void setColor(int red, int green, int blue) {
-  ledcWrite(0, red);
-  ledcWrite(1, green);
-  ledcWrite(2, blue);
+// Animación 15: Líneas alternas
+void alternatingLines() {
+  for (int i = 0; i < 4; i++) {
+    digitalWrite(LED_BLANCO_1, HIGH);
+    digitalWrite(LED_BLANCO_2, LOW);
+    digitalWrite(LED_BLANCO_3, HIGH);
+    digitalWrite(LED_BLANCO_4, LOW);
+    delay(150);
+    digitalWrite(LED_BLANCO_1, LOW);
+    digitalWrite(LED_BLANCO_2, HIGH);
+    digitalWrite(LED_BLANCO_3, LOW);
+    digitalWrite(LED_BLANCO_4, HIGH);
+    delay(150);
+  }
 }
 
-void apagarLeds() {
-  // Apagar todos los LEDs
-  digitalWrite(LED_AZUL_1, LOW);
-  digitalWrite(LED_BLANCO_1, LOW);
-  digitalWrite(LED_AZUL_2, LOW);
-  digitalWrite(LED_BLANCO_2, LOW);
-  digitalWrite(LED_BLANCO_3, LOW);
-  digitalWrite(LED_AZUL_3, LOW);
-  digitalWrite(LED_BLANCO_4, LOW);
-  digitalWrite(LED_AZUL_4, LOW);
+// Animación 16: Efecto de círculo
+void circleEffect() {
+  int circle[] = {LED_AZUL_1, LED_BLANCO_1, LED_AZUL_2, LED_BLANCO_3, LED_AZUL_4, LED_BLANCO_4, LED_AZUL_3, LED_BLANCO_2};
+  for (int i = 0; i < 8; i++) {
+    digitalWrite(circle[i], HIGH);
+    delay(100);
+    digitalWrite(circle[i], LOW);
+  }
 }
 
-void encenderLeds() {
-  // Encender todos los LEDs
-  digitalWrite(LED_AZUL_1, HIGH);
+// Animación 17: Cuadro en expansión
+void expandingSquare() {
+  digitalWrite(LED_BLANCO_2, HIGH);
+  digitalWrite(LED_BLANCO_4, HIGH);
+  delay(150);
   digitalWrite(LED_BLANCO_1, HIGH);
+  digitalWrite(LED_BLANCO_3, HIGH);
+  delay(150);
+  digitalWrite(LED_AZUL_1, HIGH);
   digitalWrite(LED_AZUL_2, HIGH);
+  digitalWrite(LED_AZUL_3, HIGH);
+  digitalWrite(LED_AZUL_4, HIGH);
+  delay(150);
+  setAllLEDs(LOW);
+}
+
+// Animación 18: Caminata aleatoria
+void randomWalk() {
+  int leds[] = {LED_AZUL_1, LED_BLANCO_1, LED_AZUL_2, LED_BLANCO_2, LED_BLANCO_3, LED_AZUL_3, LED_BLANCO_4, LED_AZUL_4};
+  int previous = -1;
+  for (int i = 0; i < 8; i++) {
+    int index;
+    do {
+      index = random(8);
+    } while (index == previous);
+    digitalWrite(leds[index], HIGH);
+    delay(150);
+    digitalWrite(leds[index], LOW);
+    previous = index;
+  }
+}
+
+// Animación 19: Patrón de cruz
+void crossPattern() {
+  digitalWrite(LED_BLANCO_1, HIGH);
+  digitalWrite(LED_BLANCO_4, HIGH);
+  delay(150);
   digitalWrite(LED_BLANCO_2, HIGH);
   digitalWrite(LED_BLANCO_3, HIGH);
-  digitalWrite(LED_AZUL_3, HIGH);
-  digitalWrite(LED_BLANCO_4, HIGH);
-  digitalWrite(LED_AZUL_4, HIGH);
+  delay(150);
+  digitalWrite(LED_CENTRAL_R, HIGH);
+  digitalWrite(LED_CENTRAL_G, HIGH);
+  digitalWrite(LED_CENTRAL_B, HIGH);
+  delay(150);
+  setAllLEDs(LOW);
+}
+
+// Animación 20: Patrón de estrella
+void starPattern() {
+  int star[] = {LED_AZUL_1, LED_AZUL_2, LED_AZUL_3, LED_AZUL_4, LED_CENTRAL_R, LED_CENTRAL_G, LED_CENTRAL_B};
+  for (int i = 0; i < 7; i++) {
+    digitalWrite(star[i], HIGH);
+    delay(100);
+    digitalWrite(star[i], LOW);
+  }
+}
+
+// Función para configurar todos los LEDs
+void setAllLEDs(int state) {
+  digitalWrite(LED_AZUL_1, state);
+  digitalWrite(LED_BLANCO_1, state);
+  digitalWrite(LED_AZUL_2, state);
+  digitalWrite(LED_BLANCO_2, state);
+  digitalWrite(LED_CENTRAL_R, state);
+  digitalWrite(LED_CENTRAL_G, state);
+  digitalWrite(LED_CENTRAL_B, state);
+  digitalWrite(LED_BLANCO_3, state);
+  digitalWrite(LED_AZUL_3, state);
+  digitalWrite(LED_BLANCO_4, state);
+  digitalWrite(LED_AZUL_4, state);
+}
+
+// Función para configurar todos los LEDs centrales
+void setAllCentralLEDs(int state) {
+  digitalWrite(LED_CENTRAL_R, state);
+  digitalWrite(LED_CENTRAL_G, state);
+  digitalWrite(LED_CENTRAL_B, state);
+}
+
+// Función para manejar la página principal
+void handleRoot() {
+  String html = "<html><body><h1>Control de Matriz LED 3x3</h1>";
+  html += "<p>Animación actual: " + String(currentAnimation) + "</p>";
+  html += "<p><a href='/setAnimation?anim=0'>Animación 1: Todos parpadean</a></p>";
+  html += "<p><a href='/setAnimation?anim=1'>Animación 2: LED Central RGB</a></p>";
+  html += "<p><a href='/setAnimation?anim=2'>Animación 3: Luz en movimiento</a></p>";
+  html += "<p><a href='/setAnimation?anim=3'>Animación 4: Fade In/Out</a></p>";
+  html += "<p><a href='/setAnimation?anim=4'>Animación 5: Luces persiguiéndose</a></p>";
+  html += "<p><a href='/setAnimation?anim=5'>Animación 6: Parpadeo aleatorio</a></p>";
+  html += "<p><a href='/setAnimation?anim=6'>Animación 7: Efecto de onda</a></p>";
+  html += "<p><a href='/setAnimation?anim=7'>Animación 8: Efecto de espiral</a></p>";
+  html += "<p><a href='/setAnimation?anim=8'>Animación 9: Pulso de color</a></p>";
+  html += "<p><a href='/setAnimation?anim=9'>Animación 10: Efecto de rebote</a></p>";
+  html += "<p><a href='/setAnimation?anim=10'>Animación 11: Respiración</a></p>";
+  html += "<p><a href='/setAnimation?anim=11'>Animación 12: Onda diagonal</a></p>";
+  html += "<p><a href='/setAnimation?anim=12'>Animación 13: Cambio de color</a></p>";
+  html += "<p><a href='/setAnimation?anim=13'>Animación 14: Parpadeo esquinas</a></p>";
+  html += "<p><a href='/setAnimation?anim=14'>Animación 15: Líneas alternas</a></p>";
+  html += "<p><a href='/setAnimation?anim=15'>Animación 16: Efecto de círculo</a></p>";
+  html += "<p><a href='/setAnimation?anim=16'>Animación 17: Cuadro en expansión</a></p>";
+  html += "<p><a href='/setAnimation?anim=17'>Animación 18: Caminata aleatoria</a></p>";
+  html += "<p><a href='/setAnimation?anim=18'>Animación 19: Patrón de cruz</a></p>";
+  html += "<p><a href='/setAnimation?anim=19'>Animación 20: Patrón de estrella</a></p>";
+  html += "<p><a href='/toggleAutoMode'>Modo: " + String(autoMode ? "Automático" : "Manual") + "</a></p>";
+  html += "</body></html>";
+
+  server.send(200, "text/html", html);
+}
+
+// Función para manejar el cambio de animación
+void handleSetAnimation() {
+  String anim = server.arg("anim");
+  currentAnimation = anim.toInt();
+  autoMode = false;  // Desactivar el modo automático cuando se selecciona manualmente
+  server.sendHeader("Location", "/");
+  server.send(303);
+}
+
+// Función para alternar entre modo automático y manual
+void handleToggleAutoMode() {
+  autoMode = !autoMode;
+  server.sendHeader("Location", "/");
+  server.send(303);
 }
