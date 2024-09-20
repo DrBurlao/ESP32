@@ -1,0 +1,12 @@
+
+LEDS FREQS:
+
+IR (Infrarrojo): 700 - 1000 nm
+Rojo: 620 - 750 nm
+Ámbar: 590 - 620 nm
+Amarillo: 570 - 590 nm
+Verde: 495 - 570 nm
+Cian: 485 - 495 nm
+Azul: 450 - 485 nm
+Violeta: 400 - 450 nm
+UV (Ultravioleta): 250 - 400 nm
