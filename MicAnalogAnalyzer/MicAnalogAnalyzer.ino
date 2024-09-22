@@ -4,17 +4,6 @@
 
 // Definición de pines
 #define MIC_PIN 34
-#define LED_AZUL_1 5
-#define LED_BLANCO_1 13
-#define LED_AZUL_2 12
-#define LED_BLANCO_2 14
-#define LED_CENTRAL_R 18
-#define LED_CENTRAL_G 19
-#define LED_CENTRAL_B 23
-#define LED_BLANCO_3 27
-#define LED_AZUL_3 16
-#define LED_BLANCO_4 17
-#define LED_AZUL_4 25
 
 // Configuración del servidor web
 WebServer server(80);
