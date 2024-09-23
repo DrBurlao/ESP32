@@ -1,0 +1,19 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Círculo exterior para referencia -->
+  <circle cx="100" cy="100" r="90" stroke="black" stroke-width="2" fill="none" />
+  
+  <!-- Agujero central para el servomotor -->
+  <circle cx="100" cy="100" r="10" stroke="black" stroke-width="2" fill="none" />
+
+  <!-- Círculo de referencia para LEDs (radio 45 unidades) -->
+  <circle cx="100" cy="100" r="45" stroke="gray" stroke-width="1" fill="none" />
+
+  <!-- 6 LEDs distribuidos equidistantemente en el círculo de radio 45 -->
+  <!-- Los ángulos están calculados para que los LEDs estén distribuidos uniformemente -->
+  <circle cx="100" cy="55" r="5" stroke="black" stroke-width="2" fill="gray" /> <!-- LED 1 -->
+  <circle cx="138.97" cy="72.5" r="5" stroke="black" stroke-width="2" fill="gray" /> <!-- LED 2 -->
+  <circle cx="138.97" cy="127.5" r="5" stroke="black" stroke-width="2" fill="gray" /> <!-- LED 3 -->
+  <circle cx="100" cy="145" r="5" stroke="black" stroke-width="2" fill="gray" /> <!-- LED 4 -->
+  <circle cx="61.03" cy="127.5" r="5" stroke="black" stroke-width="2" fill="gray" /> <!-- LED 5 -->
+  <circle cx="61.03" cy="72.5" r="5" stroke="black" stroke-width="2" fill="gray" /> <!-- LED 6 -->
+</svg>
