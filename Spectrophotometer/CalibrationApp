@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visible Spectrum Calibration</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            background-color: #1c1c1e;
+            color: #eaeaea;
+        }
+        h1 {
+            text-align: center;
+            margin: 20px 0;
+            color: #f4f4f9;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+            background: #2c2c2e;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+        select, input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #444;
+            border-radius: 5px;
+            background: #3a3a3c;
+            color: #eaeaea;
+        }
+        button {
+            background-color: #007aff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 16px;
+            border-radius: 5px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #005bb5;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        table, th, td {
+            border: 1px solid #444;
+        }
+        th, td {
+            padding: 10px;
+            text-align: center;
+        }
+        th {
+            background-color: #444;
+        }
+        .results {
+            margin-top: 30px;
+        }
+        .chart-container {
+            position: relative;
+            margin-top: 30px;
+            height: 300px;
+        }
+        .led-preview {
+            margin-top: 15px;
+            text-align: center;
+        }
+        .led {
+            width: 50px;
+            height: 50px;
+            border-radius: 25px;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Visible Spectrum Calibration</h1>
+        <form id="calibrationForm">
+            <div class="input-group">
+                <label for="ledColor">LED Color</label>
+                <select id="ledColor" required onchange="updateLedPreview()">
+                    <option value="">Select a color</option>
+                    <option value="Red">Red (620 - 750 nm)</option>
+                    <option value="Amber">Amber (590 - 620 nm)</option>
+                    <option value="Yellow">Yellow (570 - 590 nm)</option>
+                    <option value="Green">Green (495 - 570 nm)</option>
+                    <option value="Cyan">Cyan (485 - 495 nm)</option>
+                    <option value="Blue">Blue (450 - 485 nm)</option>
+                    <option value="Violet">Violet (400 - 450 nm)</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label for="customWavelength">Custom Wavelength (nm)</label>
+                <input type="number" id="customWavelength" step="1" placeholder="E.g: 500">
+            </div>
+            <div class="input-group">
+                <label for="wavelength">Wavelength (nm)</label>
+                <select id="wavelength" required onchange="updateLedPreview()">
+                    <option value="">Select a wavelength</option>
+                    <option value="620">620 nm (Red)</option>
+                    <option value="590">590 nm (Amber)</option>
+                    <option value="570">570 nm (Yellow)</option>
+                    <option value="495">495 nm (Green)</option>
+                    <option value="485">485 nm (Cyan)</option>
+                    <option value="450">450 nm (Blue)</option>
+                    <option value="400">400 nm (Violet)</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label for="noMaterialVoltage">Voltage without Material (V)</label>
+                <input type="number" id="noMaterialVoltage" step="0.01" placeholder="E.g: 2.5" required>
+            </div>
+            <div class="input-group">
+                <label for="withMaterialVoltage">Voltage with Material (V)</label>
+                <input type="number" id="withMaterialVoltage" step="0.01" placeholder="E.g: 1.8" required>
+            </div>
+            <div class="input-group">
+                <label for="potentiometerResistance">Potentiometer Resistance (Ω)</label>
+                <input type="number" id="potentiometerResistance" step="0.1" placeholder="E.g: 10000 (10kΩ)" required>
+            </div>
+            <button type="button" onclick="addData()">Add Data</button>
+            <button type="button" onclick="resetForm()">Reset Data</button>
+            <button type="button" onclick="exportTableToCSV('results.csv')">Export to CSV</button>
+            <button type="button" onclick="exportTableToExcel('results.xlsx')">Export to Excel</button>
+        </form>
+
+        <div class="led-preview">
+            <h2>LED Preview</h2>
+            <div id="ledDisplay" class="led" style="background-color: gray;"></div>
+        </div>
+
+        <div class="results">
+            <h2>Experiment Results</h2>
+            <table id="resultsTable">
+                <thead>
+                    <tr>
+                        <th>LED Color</th>
+                        <th>Wavelength (nm)</th>
+                        <th>Voltage without Material (V)</th>
+                        <th>Voltage with Material (V)</th>
+                        <th>Resistance (Ω)</th>
+                        <th>Difference (V)</th>
+                        <th>Digital Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Results will be added here -->
+                </tbody>
+            </table>
+        </div>
+
+        <div class="chart-container">
+            <canvas id="voltageChart"></canvas>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Array to store experiment data
+        let experimentData = [];
+
+        // Function to add data to the table
+        function addData() {
+            // Get values from the form
+            let ledColor = document.getElementById('ledColor').value;
+            let customWavelength = document.getElementById('customWavelength').value;
+            let wavelength = document.getElementById('wavelength').value || customWavelength;
+            let noMaterialVoltage = parseFloat(document.getElementById('noMaterialVoltage').value);
+            let withMaterialVoltage = parseFloat(document.getElementById('withMaterialVoltage').value);
+            let potentiometerResistance = parseFloat(document.getElementById('potentiometerResistance').value);
+
+            // Validate that all fields are filled
+            if (!ledColor || !wavelength || isNaN(noMaterialVoltage) || isNaN(withMaterialVoltage) || isNaN(potentiometerResistance)) {
+                alert("Please complete all fields.");
+                return;
+            }
+
+            // Calculate the voltage difference
+            let voltageDifference = (noMaterialVoltage - withMaterialVoltage).toFixed(2);
+
+            // Calculate the digital value for the voltage with material
+            let referenceVoltage = 3.3; // Reference voltage of ESP32
+            let digitalValue = Math.round((withMaterialVoltage / referenceVoltage) * 1023);
+
+            // Add the data to the array
+            experimentData.push({
+                color: ledColor,
+                wavelength: wavelength,
+                noMaterialVoltage: noMaterialVoltage,
+                withMaterialVoltage: withMaterialVoltage,
+                potentiometerResistance: potentiometerResistance,
+                difference: voltageDifference,
+                digital: digitalValue
+            });
+
+            // Update the table and the chart with new data
+            updateTable();
+            updateChart();
+
+            // Reset the form after adding data
+            resetForm();
+        }
+
+        // Function to update the table
+        function updateTable() {
+            let tableBody = document.querySelector('#resultsTable tbody');
+            tableBody.innerHTML = ''; // Clear previous content
+
+            // Iterate through the data and generate table rows
+            experimentData.forEach((data) => {
+                let row = `<tr>
+                    <td>${data.color}</td>
+                    <td>${data.wavelength}</td>
+                    <td>${data.noMaterialVoltage}</td>
+                    <td>${data.withMaterialVoltage}</td>
+                    <td>${data.potentiometerResistance}</td>
+                    <td>${data.difference}</td>
+                    <td>${data.digital}</td>
+                </tr>`;
+                tableBody.innerHTML += row;
+            });
+        }
+
+        // Function to update the chart
+        function updateChart() {
+            const ctx = document.getElementById('voltageChart').getContext('2d');
+            let labels = experimentData.map(data => data.wavelength);
+            let withMaterialData = experimentData.map(data => data.withMaterialVoltage);
+            let noMaterialData = experimentData.map(data => data.noMaterialVoltage);
+
+            // Clear the previous chart if it exists
+            if (window.voltageChart) {
+                window.voltageChart.destroy();
+            }
+
+            // Create a new chart
+            window.voltageChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Voltage with Material (V)',
+                        data: withMaterialData,
+                        borderColor: 'blue',
+                        fill: false
+                    }, {
+                        label: 'Voltage without Material (V)',
+                        data: noMaterialData,
+                        borderColor: 'red',
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Wavelength (nm)'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Voltage (V)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Function to reset the form
+        function resetForm() {
+            document.getElementById('calibrationForm').reset();
+            updateLedPreview();
+        }
+
+        // Function to update LED preview
+        function updateLedPreview() {
+            let ledColor = document.getElementById('ledColor').value;
+            let ledDisplay = document.getElementById('ledDisplay');
+
+            switch (ledColor) {
+                case 'Red':
+                    ledDisplay.style.backgroundColor = 'red';
+                    break;
+                case 'Amber':
+                    ledDisplay.style.backgroundColor = 'orange';
+                    break;
+                case 'Yellow':
+                    ledDisplay.style.backgroundColor = 'yellow';
+                    break;
+                case 'Green':
+                    ledDisplay.style.backgroundColor = 'green';
+                    break;
+                case 'Cyan':
+                    ledDisplay.style.backgroundColor = 'cyan';
+                    break;
+                case 'Blue':
+                    ledDisplay.style.backgroundColor = 'blue';
+                    break;
+                case 'Violet':
+                    ledDisplay.style.backgroundColor = 'purple';
+                    break;
+                default:
+                    ledDisplay.style.backgroundColor = 'gray'; // Default color
+            }
+        }
+
+        // Function to export table to CSV
+        function exportTableToCSV(filename) {
+            let csv = [];
+            let rows = document.querySelectorAll("#resultsTable tr");
+            for (let i = 0; i < rows.length; i++) {
+                let row = [], cols = rows[i].querySelectorAll("td, th");
+                for (let j = 0; j < cols.length; j++) {
+                    row.push(cols[j].innerText);
+                }
+                csv.push(row.join(","));        
+            }
+            downloadCSV(csv.join("\n"), filename);
+        }
+
+        // Function to download CSV
+        function downloadCSV(csv, filename) {
+            let csvFile;
+            let downloadLink;
+
+            // CSV file
+            csvFile = new Blob([csv], { type: "text/csv" });
+
+            // Download link
+            downloadLink = document.createElement("a");
+
+            // File name
+            downloadLink.download = filename;
+
+            // Create a link to the file
+            downloadLink.href = window.URL.createObjectURL(csvFile);
+
+            // Hide download link
+            downloadLink.style.display = "none";
+
+            // Add the link to the DOM
+            document.body.appendChild(downloadLink);
+
+            // Click the link to download the file
+            downloadLink.click();
+        }
+
+        // Function to export table to Excel
+        function exportTableToExcel(filename) {
+            let table = document.getElementById('resultsTable');
+            let wb = XLSX.utils.table_to_book(table, { sheet: "Results" });
+            XLSX.writeFile(wb, filename);
+        }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.16.9/xlsx.full.min.js"></script>
+</body>
+</html>
