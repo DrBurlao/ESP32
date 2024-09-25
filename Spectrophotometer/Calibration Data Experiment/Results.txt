@@ -1,0 +1,78 @@
+LIGHT SOURCE MODULE:
+3.3v Red LED 680Nm
+Resistor =100 Ohm
+
+
+
+LDR MODULE:
+Variable Resistor Value= 2400 Ohm
+Vin= 5.010-5.019 V
+LDR STANDBY OUT= 2.800 V
+
+Blank = 0.969 V
+1/1   = 1.939 V
+1/2   = 2.409 V (teórico)
+1/3   = 2.879 V
+1/4   = 3.027 V (teórico)
+1/5   = 3.089 V (teórico)
+1/6   = 3.129 V (teórico)
+1/7   = 3.155 V (teórico)
+1/8   = 3.173 V (teórico)
+1/9   = 3.027 V
+1/10  = 3.193 V (teórico)
+
+
+Data with estimated error:
+Blank: No error is calculated here since there is no theoretical value for the blank.
+
+1/1:
+
+Experimental: 1.939 V
+Theoretical: 1.939 V (this is the baseline value)
+Error: 0%
+1/3:
+
+Experimental: 2.879 V
+Theoretical: 2.879 V (same as the experimental value)
+Error: 0%
+1/9:
+
+Experimental: 3.027 V
+Theoretical: 3.027 V (same as the experimental value)
+Error: 0%
+For the theoretical values we previously estimated:
+
+1/2:
+
+Experimental: Not measured, theoretical only
+Theoretical: 2.409 V
+Error: Not applicable (NA)
+1/4:
+
+Experimental: Not measured
+Theoretical: 3.027 V
+Error: NA
+1/5:
+
+Experimental: Not measured
+Theoretical: 3.089 V
+Error: NA
+1/6:
+
+Experimental: Not measured
+Theoretical: 3.129 V
+Error: NA
+1/7:
+
+Experimental: Not measured
+Theoretical: 3.155 V
+Error: NA
+1/8:
+
+Experimental: Not measured
+Theoretical: 3.173 V
+Error: NA
+1/10:
+Experimental: Not measured
+Theoretical: 3.193 V
+Error: NA
