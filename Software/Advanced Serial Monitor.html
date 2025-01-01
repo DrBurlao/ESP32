@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Serial Monitor</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #1e1e1e;
+            color: #ffffff;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        header {
+            background: #3a3a3a;
+            padding: 10px;
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 10px;
+        }
+
+        .serial-output {
+            flex: 1;
+            background: #000;
+            padding: 10px;
+            border: 1px solid #555;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        input, select, button {
+            padding: 10px;
+            font-size: 1rem;
+            border: 1px solid #555;
+            border-radius: 5px;
+            background: #2b2b2b;
+            color: #fff;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #444;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 5px;
+            background: #3a3a3a;
+        }
+
+        .status {
+            font-size: 0.9rem;
+        }
+
+        .status.connected {
+            color: #00ff00;
+        }
+
+        .status.disconnected {
+            color: #ff0000;
+        }
+    </style>
+</head>
+<body>
+    <header>Advanced Serial Monitor</header>
+    <main>
+        <div class="controls">
+            <label for="baudRate">Baud Rate:</label>
+            <select id="baudRate">
+                <option value="9600">9600</option>
+                <option value="19200">19200</option>
+                <option value="38400">38400</option>
+                <option value="57600">57600</option>
+                <option value="115200">115200</option>
+            </select>
+
+            <button id="connect">Connect</button>
+            <button id="disconnect" disabled>Disconnect</button>
+
+            <span class="status disconnected" id="status">Disconnected</span>
+        </div>
+
+        <div class="serial-output" id="serialOutput">
+            <p>Waiting for serial data...</p>
+        </div>
+
+        <div class="controls">
+            <input type="text" id="command" placeholder="Enter command here">
+            <button id="send">Send</button>
+        </div>
+
+        <div class="controls">
+            <button id="clear">Clear Output</button>
+            <label for="saveFile">Save Output:</label>
+            <button id="saveFile">Download</button>
+        </div>
+
+        <div class="controls">
+            <label for="filterText">Filter:</label>
+            <input type="text" id="filterText" placeholder="Enter filter text">
+            <button id="toggleAutoScroll">Toggle Auto-scroll</button>
+            <span id="stats">Bytes Sent: 0, Bytes Received: 0</span>
+        </div>
+    </main>
+    <footer class="footer">&copy; Álvaro Merchán Martín</footer>
+
+    <script>
+        let port;
+        let reader;
+        let writer;
+        let keepReading = true;
+        let autoScroll = true;
+        let bytesSent = 0;
+        let bytesReceived = 0;
+
+        const serialOutput = document.getElementById('serialOutput');
+        const connectButton = document.getElementById('connect');
+        const disconnectButton = document.getElementById('disconnect');
+        const sendButton = document.getElementById('send');
+        const clearButton = document.getElementById('clear');
+        const saveButton = document.getElementById('saveFile');
+        const commandInput = document.getElementById('command');
+        const baudRateSelect = document.getElementById('baudRate');
+        const statusDisplay = document.getElementById('status');
+        const filterInput = document.getElementById('filterText');
+        const toggleAutoScrollButton = document.getElementById('toggleAutoScroll');
+        const statsDisplay = document.getElementById('stats');
+
+        connectButton.addEventListener('click', async () => {
+            try {
+                port = await navigator.serial.requestPort();
+                await port.open({ baudRate: parseInt(baudRateSelect.value) });
+                reader = port.readable.getReader();
+                writer = port.writable.getWriter();
+                connectButton.disabled = true;
+                disconnectButton.disabled = false;
+                keepReading = true;
+                statusDisplay.textContent = "Connected";
+                statusDisplay.className = "status connected";
+                serialOutput.textContent += "\nConnected to port.\n";
+                readSerial();
+            } catch (err) {
+                serialOutput.textContent += `\nError: ${err.message}\n`;
+            }
+        });
+
+        disconnectButton.addEventListener('click', async () => {
+            try {
+                keepReading = false;
+                reader.cancel();
+                await port.close();
+                connectButton.disabled = false;
+                disconnectButton.disabled = true;
+                statusDisplay.textContent = "Disconnected";
+                statusDisplay.className = "status disconnected";
+                serialOutput.textContent += "\nDisconnected from port.\n";
+            } catch (err) {
+                serialOutput.textContent += `\nError: ${err.message}\n`;
+            }
+        });
+
+        sendButton.addEventListener('click', async () => {
+            const command = commandInput.value;
+            if (command && writer) {
+                const data = new TextEncoder().encode(command + '\n');
+                await writer.write(data);
+                bytesSent += data.length;
+                updateStats();
+                serialOutput.textContent += `> ${command}\n`;
+                commandInput.value = '';
+            }
+        });
+
+        clearButton.addEventListener('click', () => {
+            serialOutput.textContent = '';
+        });
+
+        saveButton.addEventListener('click', () => {
+            const blob = new Blob([serialOutput.textContent], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'serial_output.txt';
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        toggleAutoScrollButton.addEventListener('click', () => {
+            autoScroll = !autoScroll;
+            toggleAutoScrollButton.textContent = autoScroll ? "Disable Auto-scroll" : "Enable Auto-scroll";
+        });
+
+        async function readSerial() {
+            while (keepReading) {
+                try {
+                    const { value, done } = await reader.read();
+                    if (done) {
+                        break;
+                    }
+                    const text = new TextDecoder().decode(value);
+                    bytesReceived += value.length;
+                    updateStats();
+                    if (filterInput.value && !text.includes(filterInput.value)) {
+                        continue;
+                    }
+                    serialOutput.textContent += text;
+                    if (autoScroll) {
+                        serialOutput.scrollTop = serialOutput.scrollHeight;
+                    }
+                } catch (err) {
+                    serialOutput.textContent += `\nError: ${err.message}\n`;
+                    break;
+                }
+            }
+        }
+
+        function updateStats() {
+            statsDisplay.textContent = `Bytes Sent: ${bytesSent}, Bytes Received: ${bytesReceived}`;
+        }
+    </script>
+</body>
+</html>
