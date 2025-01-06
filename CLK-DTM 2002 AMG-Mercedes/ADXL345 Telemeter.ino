@@ -18,9 +18,17 @@ WebServer server(80);
 float accX = 0, accY = 0, accZ = 0;
 float baseX = 0, baseY = 0, baseZ = 0; // Valores base para calibración
 float speed = 0;                        // Velocidad calculada del eje X (m/s)
-float direction = 0;                    // Dirección calculada del eje Y
+float speedKmH = 0;                     // Velocidad en km/h
+float acceleration = 0;                 // Aceleración en el eje X (m/s²)
+float displacement = 0;                 // Desplazamiento acumulado (m)
 float height = 0;                       // Altura calculada del eje Z
+float direction = 0;                    // Dirección calculada del eje Y
 const float threshold = 0.1;            // Umbral para evitar oscilaciones (en G)
+const float gravity = 9.8;              // Conversión de G a m/s^2
+
+unsigned long lastUpdateTime = 0;       // Tiempo de la última actualización
+unsigned long stationaryStartTime = 0;  // Tiempo en que comenzó a detectarse detención
+bool isStationary = false;              // Bandera para estado detenido
 
 // Configurar el ADXL345
 void setupADXL345() {
@@ -51,19 +59,6 @@ void readADXL345() {
     accX = fabs(accX - baseX) > threshold ? accX - baseX : 0;
     accY = fabs(accY - baseY) > threshold ? accY - baseY : 0;
     accZ = fabs(accZ - baseZ) > threshold ? accZ - baseZ : 0;
-
-    // Calcular velocidad usando solo el eje X
-    speed = accX * 9.8; // Convertir G a m/s^2
-
-    // Determinar dirección usando el eje Y
-    if (fabs(accY) > threshold) {
-      direction = accY > 0 ? 1 : -1; // 1: Derecha, -1: Izquierda
-    } else {
-      direction = 0; // Recto
-    }
-
-    // Calcular altura usando el eje Z
-    height = accZ * 9.8; // Convertir G a m/s^2
   }
 }
 
@@ -91,6 +86,52 @@ void calibrateADXL345() {
   Serial.print("Base Z: "); Serial.println(baseZ);
 }
 
+// Calcular telemetría
+void calculateTelemetry() {
+  unsigned long currentTime = millis();
+  float deltaTime = (currentTime - lastUpdateTime) / 1000.0; // Tiempo en segundos
+  lastUpdateTime = currentTime;
+
+  // Calcular aceleración en el eje X
+  acceleration = accX * gravity;
+
+  // Verificar si está estacionario
+  if (fabs(acceleration) < threshold) {
+    if (!isStationary) {
+      stationaryStartTime = currentTime; // Inicia el tiempo estacionario
+      isStationary = true;
+    } else if (currentTime - stationaryStartTime > 1000) { // Más de 1 segundo estacionario
+      speed = 0;
+      speedKmH = 0;
+    }
+  } else {
+    isStationary = false; // El coche se está moviendo
+  }
+
+  // Actualizar velocidad solo si no está estacionario
+  if (!isStationary) {
+    speed += acceleration * deltaTime;
+  }
+
+  // Convertir velocidad a km/h
+  speedKmH = speed * 3.6;
+
+  // Calcular desplazamiento acumulado (siempre suma, incluso hacia atrás)
+  if (fabs(speed) > 0.1) {
+    displacement += fabs(speed * deltaTime);
+  }
+
+  // Calcular altura en el eje Z
+  height = accZ * gravity;
+
+  // Determinar dirección
+  if (fabs(accY) > threshold) {
+    direction = accY > 0 ? 1 : -1; // 1: Derecha, -1: Izquierda
+  } else {
+    direction = 0; // Recto
+  }
+}
+
 // Página principal HTML
 void handleRoot() {
   String page = R"rawliteral(
@@ -107,19 +148,23 @@ void handleRoot() {
           fetch('/telemetry_data')
             .then(response => response.json())
             .then(data => {
-              document.getElementById('speed').innerText = `Speed: ${data.speed.toFixed(2)} m/s`;
+              document.getElementById('speed').innerText = `Speed: ${data.speedKmH.toFixed(2)} km/h`;
+              document.getElementById('acceleration').innerText = `Acceleration: ${data.acceleration.toFixed(2)} m/s²`;
+              document.getElementById('displacement').innerText = `Displacement: ${data.displacement.toFixed(2)} m`;
               document.getElementById('direction').innerText = 
                 `Direction: ${data.direction > 0 ? 'Right' : data.direction < 0 ? 'Left' : 'Straight'}`;
               document.getElementById('height').innerText = `Height: ${data.height.toFixed(2)} m`;
             })
             .catch(error => console.error('Error:', error));
         }
-        setInterval(fetchData, 20); // Actualizar cada 20ms
+        setInterval(fetchData, 50); // Actualizar cada 50ms
       </script>
     </head>
     <body>
       <h1>RC Car Telemetry</h1>
       <div class="data" id="speed">Speed: Loading...</div>
+      <div class="data" id="acceleration">Acceleration: Loading...</div>
+      <div class="data" id="displacement">Displacement: Loading...</div>
       <div class="data" id="direction">Direction: Loading...</div>
       <div class="data" id="height">Height: Loading...</div>
     </body>
@@ -131,7 +176,9 @@ void handleRoot() {
 
 // Enviar datos de telemetría como JSON
 void handleTelemetryData() {
-  String json = "{\"speed\":" + String(speed, 2) + 
+  String json = "{\"speedKmH\":" + String(speedKmH, 2) + 
+                ",\"acceleration\":" + String(acceleration, 2) + 
+                ",\"displacement\":" + String(displacement, 2) + 
                 ",\"direction\":" + String(direction) + 
                 ",\"height\":" + String(height, 2) + "}";
   server.send(200, "application/json", json);
@@ -140,7 +187,7 @@ void handleTelemetryData() {
 void setup() {
   Serial.begin(115200);
   setupADXL345();
-  calibrateADXL345(); // Calibrar al iniciar
+  calibrateADXL345();
 
   // Configurar Wi-Fi en modo AP
   WiFi.softAP(ssid, password);
@@ -153,10 +200,12 @@ void setup() {
   server.on("/telemetry_data", handleTelemetryData);
   server.begin();
   Serial.println("Servidor iniciado");
+
+  lastUpdateTime = millis();
 }
 
 void loop() {
-  server.handleClient();  // Manejar solicitudes del servidor
-  readADXL345();          // Leer valores del acelerómetro
-  delay(20);              // Actualizar cada 20ms
+  server.handleClient();
+  readADXL345();
+  calculateTelemetry();
 }
