@@ -93,7 +93,7 @@
         const analyser = audioContext.createAnalyser();
         analyser.fftSize = 2048;
         analyser.smoothingTimeConstant = 0.8;
-        analyser.minDecibels = -90;
+        analyser.minDecibels = -45;
         analyser.maxDecibels = -10;
 
         const arduinoNoteFrequencies = {
