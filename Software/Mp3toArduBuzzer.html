@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detección de Notas</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 0;
+            margin: 0;
+            background-color: #121212;
+            color: #e0e0e0;
+            display: flex;
+            height: 100vh;
+        }
+
+        #menu {
+            width: 250px;
+            background-color: #1e1e1e;
+            padding: 20px;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.5);
+        }
+
+        #menu h2 {
+            color: #ffffff;
+            margin-bottom: 20px;
+        }
+
+        #menu label {
+            display: block;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        #menu input {
+            margin-top: 5px;
+            padding: 5px;
+            font-size: 14px;
+            width: 100%;
+            border: 1px solid #444;
+            border-radius: 3px;
+            background-color: #252525;
+            color: #e0e0e0;
+        }
+
+        #menu button {
+            margin-top: 20px;
+            padding: 10px;
+            font-size: 14px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        #menu button:disabled {
+            background-color: #444;
+        }
+
+        #main {
+            flex-grow: 1;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #output {
+            width: 100%;
+            max-width: 600px;
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #1e1e1e;
+            color: #e0e0e0;
+            border: 1px solid #444;
+            border-radius: 3px;
+            white-space: pre-wrap;
+            overflow-y: auto;
+            max-height: 300px;
+        }
+
+        #output pre {
+            counter-reset: line-number;
+        }
+
+        #output pre span {
+            display: block;
+            counter-increment: line-number;
+        }
+
+        #output pre span::before {
+            content: counter(line-number) ". ";
+            color: #888;
+        }
+
+        #noteCounter {
+            margin-top: 10px;
+            font-size: 16px;
+            color: #00ff00;
+        }
+
+        #lineCounter {
+            margin-top: 10px;
+            font-size: 16px;
+            color: #ffcc00;
+        }
+    </style>
+</head>
+<body>
+    <div id="menu">
+        <h2>Configuración</h2>
+        <label for="buzzerPin">Pin del Buzzer:</label>
+        <input type="number" id="buzzerPin" value="8">
+
+        <label for="noteSpeed">Velocidad de las Notas (%):</label>
+        <input type="number" id="noteSpeed" value="100">
+
+        <label for="minDb">Mínimo Decibeles:</label>
+        <input type="number" id="minDb" value="-45">
+
+        <label for="maxDb">Máximo Decibeles:</label>
+        <input type="number" id="maxDb" value="-10">
+
+        <label for="smoothing">Constante de Suavizado:</label>
+        <input type="number" step="0.1" id="smoothing" value="0.8">
+
+        <input type="file" id="audioFileInput" accept="audio/mp3, audio/wav">
+        <button id="startButton">Iniciar Detección</button>
+        <button id="stopButton" disabled>Detener Detección</button>
+        <button id="copyCodeButton">Copiar Código</button>
+        <button id="downloadCodeButton">Descargar Código</button>
+    </div>
+
+    <div id="main">
+        <h1>Detección de Notas Musicales</h1>
+        <div id="output"><pre>Esperando audio...</pre></div>
+        <div id="noteCounter">Notas detectadas: 0</div>
+        <div id="lineCounter">Líneas de código: 0</div>
+    </div>
+
+    <script>
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const analyser = audioContext.createAnalyser();
+
+        const arduinoNoteFrequencies = {
+            'C0': 16.35, 'C#0': 17.32, 'D0': 18.35, 'D#0': 19.45, 'E0': 20.60, 'F0': 21.83, 'F#0': 23.12, 'G0': 24.50, 'G#0': 25.96, 'A0': 27.50, 'A#0': 29.14, 'B0': 30.87,
+            'C1': 32.70, 'C#1': 34.65, 'D1': 36.71, 'D#1': 38.89, 'E1': 41.20, 'F1': 43.65, 'F#1': 46.25, 'G1': 49.00, 'G#1': 51.91, 'A1': 55.00, 'A#1': 58.27, 'B1': 61.74,
+            'C2': 65.41, 'C#2': 69.30, 'D2': 73.42, 'D#2': 77.78, 'E2': 82.41, 'F2': 87.31, 'F#2': 92.50, 'G2': 98.00, 'G#2': 103.83, 'A2': 110.00, 'A#2': 116.54, 'B2': 123.47,
+            'C3': 130.81, 'C#3': 138.59, 'D3': 146.83, 'D#3': 155.56, 'E3': 164.81, 'F3': 174.61, 'F#3': 185.00, 'G3': 196.00, 'G#3': 207.65, 'A3': 220.00, 'A#3': 233.08, 'B3': 246.94,
+            'C4': 261.63, 'C#4': 277.18, 'D4': 293.66, 'D#4': 311.13, 'E4': 329.63, 'F4': 349.23, 'F#4': 369.99, 'G4': 392.00, 'G#4': 415.30, 'A4': 440.00, 'A#4': 466.16, 'B4': 493.88,
+            'C5': 523.25, 'C#5': 554.37, 'D5': 587.33, 'D#5': 622.25, 'E5': 659.26, 'F5': 698.46, 'F#5': 739.99, 'G5': 783.99, 'G#5': 830.61, 'A5': 880.00, 'A#5': 932.33, 'B5': 987.77,
+            'C6': 1046.50, 'C#6': 1108.73, 'D6': 1174.66, 'D#6': 1244.51, 'E6': 1318.51, 'F6': 1396.91, 'F#6': 1479.98, 'G6': 1567.98, 'G#6': 1661.22, 'A6': 1760.00, 'A#6': 1864.66, 'B6': 1975.53
+        };
+
+        let melody = [];
+        let times = [];
+        let isGeneratingCode = false;
+        let previousTime = Date.now();
+
+        const buzzerPinInput = document.getElementById('buzzerPin');
+        const noteSpeedInput = document.getElementById('noteSpeed');
+        const minDbInput = document.getElementById('minDb');
+        const maxDbInput = document.getElementById('maxDb');
+        const smoothingInput = document.getElementById('smoothing');
+        const audioFileInput = document.getElementById('audioFileInput');
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+        const copyCodeButton = document.getElementById('copyCodeButton');
+        const downloadCodeButton = document.getElementById('downloadCodeButton');
+        const output = document.getElementById('output').querySelector('pre');
+        const noteCounter = document.getElementById('noteCounter');
+        const lineCounter = document.getElementById('lineCounter');
+
+        startButton.addEventListener('click', () => {
+            analyser.minDecibels = parseFloat(minDbInput.value);
+            analyser.maxDecibels = parseFloat(maxDbInput.value);
+            analyser.smoothingTimeConstant = parseFloat(smoothingInput.value);
+
+            startDetection();
+            startButton.disabled = true;
+            stopButton.disabled = false;
+        });
+
+        stopButton.addEventListener('click', () => {
+            isGeneratingCode = false;
+            startButton.disabled = false;
+            stopButton.disabled = true;
+        });
+
+        copyCodeButton.addEventListener('click', () => {
+            navigator.clipboard.writeText(output.textContent).then(() => {
+                alert('Código copiado al portapapeles');
+            });
+        });
+
+        downloadCodeButton.addEventListener('click', () => {
+            const blob = new Blob([output.textContent], { type: 'text/plain' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'melody.ino';
+            link.click();
+        });
+
+        function startDetection() {
+            isGeneratingCode = true;
+            melody = [];
+            times = [];
+            output.textContent = 'Analizando...';
+            noteCounter.textContent = 'Notas detectadas: 0';
+            lineCounter.textContent = 'Líneas de código: 0';
+
+            const fileReader = new FileReader();
+            fileReader.onload = function(event) {
+                audioContext.decodeAudioData(event.target.result, function(buffer) {
+                    const source = audioContext.createBufferSource();
+                    source.buffer = buffer;
+                    source.connect(analyser);
+                    analyser.connect(audioContext.destination);
+                    source.start();
+                    detectMelody();
+                });
+            };
+            fileReader.readAsArrayBuffer(audioFileInput.files[0]);
+        }
+
+        function detectMelody() {
+            if (!isGeneratingCode) return;
+
+            const frequencyData = new Uint8Array(analyser.frequencyBinCount);
+            analyser.getByteFrequencyData(frequencyData);
+
+            const currentTime = Date.now();
+            if (currentTime - previousTime >= 10) {
+                previousTime = currentTime;
+
+                let maxIndex = 0;
+                let maxValue = 0;
+                for (let i = 0; i < frequencyData.length; i++) {
+                    if (frequencyData[i] > maxValue) {
+                        maxValue = frequencyData[i];
+                        maxIndex = i;
+                    }
+                }
+
+                const frequency = maxIndex * audioContext.sampleRate / analyser.fftSize;
+                const closestNote = findClosestNote(frequency);
+                if (closestNote) {
+                    if (melody.length > 0 && melody[melody.length - 1] === closestNote) {
+                        times[times.length - 1] += 10;
+                    } else {
+                        melody.push(closestNote);
+                        times.push(10);
+                        noteCounter.textContent = `Notas detectadas: ${melody.length}`;
+                    }
+                    generateArduinoCode(melody, times);
+                }
+            }
+
+            if (isGeneratingCode) {
+                requestAnimationFrame(detectMelody);
+            }
+        }
+
+        function findClosestNote(frequency) {
+            let closestNote = '';
+            let minDifference = Infinity;
+            for (let note in arduinoNoteFrequencies) {
+                const diff = Math.abs(frequency - arduinoNoteFrequencies[note]);
+                if (diff < minDifference) {
+                    minDifference = diff;
+                    closestNote = note;
+                }
+            }
+            return closestNote;
+        }
+
+        function generateArduinoCode(melody, times) {
+            const buzzerPin = parseInt(buzzerPinInput.value);
+            const speedFactor = parseFloat(noteSpeedInput.value) / 100;
+            let arduinoCode = `#define BUZZER_PIN ${buzzerPin}\n\nvoid setup() {\n}\n\nvoid loop() {\n`;
+            for (let i = 0; i < melody.length; i++) {
+                const frequency = arduinoNoteFrequencies[melody[i]];
+                const adjustedTime = Math.round(times[i] * speedFactor);
+                arduinoCode += `  tone(BUZZER_PIN, ${frequency.toFixed(2)});\n`;
+                arduinoCode += `  delay(${adjustedTime});\n`;
+                arduinoCode += `  noTone(BUZZER_PIN);\n`;
+                arduinoCode += `  delay(10);\n`;
+            }
+            arduinoCode += `}\n`;
+            output.textContent = arduinoCode;
+
+            // Update line counter
+            const totalLines = arduinoCode.split('\n').length - 1;
+            lineCounter.textContent = `Líneas de código: ${totalLines}`;
+        }
+    </script>
+</body>
+</html>
