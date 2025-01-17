@@ -112,34 +112,34 @@
 </head>
 <body>
     <div id="menu">
-        <h2>Configuración</h2>
-        <label for="buzzerPin">Pin del Buzzer:</label>
+        <h2>Analysis Setup</h2>
+        <label for="buzzerPin">Select Buzzer Pin:</label>
         <input type="number" id="buzzerPin" value="8">
 
-        <label for="noteSpeed">Velocidad de las Notas (%):</label>
+        <label for="noteSpeed">Note Speed (%):</label>
         <input type="number" id="noteSpeed" value="100">
 
-        <label for="minDb">Mínimo Decibeles:</label>
+        <label for="minDb">Min dB:</label>
         <input type="number" id="minDb" value="-45">
 
-        <label for="maxDb">Máximo Decibeles:</label>
+        <label for="maxDb">Max dB:</label>
         <input type="number" id="maxDb" value="-10">
 
-        <label for="smoothing">Constante de Suavizado:</label>
+        <label for="smoothing">Smoothing Constant:</label>
         <input type="number" step="0.1" id="smoothing" value="0.8">
 
         <input type="file" id="audioFileInput" accept="audio/mp3, audio/wav">
-        <button id="startButton">Iniciar Detección</button>
-        <button id="stopButton" disabled>Detener Detección</button>
-        <button id="copyCodeButton">Copiar Código</button>
-        <button id="downloadCodeButton">Descargar Código</button>
+        <button id="startButton">Start Detection</button>
+        <button id="stopButton" disabled>Stop Detection</button>
+        <button id="copyCodeButton">Copy to clipboard</button>
+        <button id="downloadCodeButton">Download .ino file</button>
     </div>
 
     <div id="main">
         <h1>DrBurlao's Mp3toArduBuzzer</h1>
-        <div id="output"><pre>Esperando audio...</pre></div>
-        <div id="noteCounter">Notas detectadas: 0</div>
-        <div id="lineCounter">Líneas de código: 0</div>
+        <div id="output"><pre>Waiting for audio input</pre></div>
+        <div id="noteCounter">Detected Notes: 0</div>
+        <div id="lineCounter">Lines of Code: 0</div>
     </div>
 
     <script>
@@ -193,7 +193,7 @@
 
         copyCodeButton.addEventListener('click', () => {
             navigator.clipboard.writeText(output.textContent).then(() => {
-                alert('Código copiado al portapapeles');
+                alert('Copied to clipboard');
             });
         });
 
@@ -209,9 +209,9 @@
             isGeneratingCode = true;
             melody = [];
             times = [];
-            output.textContent = 'Analizando...';
-            noteCounter.textContent = 'Notas detectadas: 0';
-            lineCounter.textContent = 'Líneas de código: 0';
+            output.textContent = 'Analyzing...';
+            noteCounter.textContent = 'Detected Notes: 0';
+            lineCounter.textContent = 'Lines of Code: 0';
 
             const fileReader = new FileReader();
             fileReader.onload = function(event) {
